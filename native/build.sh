@@ -100,6 +100,7 @@ plutil -lint "$APP/Contents/Info.plist"
 # their provider; re-signing the copied app checks the actual delivered files.
 codesign --force --deep --sign - "$APP"
 codesign --verify --deep --strict "$APP"
-"$APP/Contents/Resources/runtime/python/bin/python3" -I -c 'import json, pathlib, hashlib, struct, subprocess, tempfile, zipfile, xml.etree.ElementTree; print("Bundled Python: OK")'
+"$APP/Contents/Resources/runtime/python/bin/python3" -I -B -c 'import json, pathlib, hashlib, struct, subprocess, tempfile, zipfile, xml.etree.ElementTree; print("Bundled Python: OK")'
+codesign --verify --deep --strict "$APP"
 printf 'Built: %s\n' "$APP"
 du -sh "$APP"
