@@ -1,0 +1,26 @@
+Mode: built-in image_gen; transparent_background=true.
+Asset: one icon, with two targeted perimeter cleanup edits.
+
+Creation prompt:
+Use case: stylized-concept
+Asset type: single production macOS application icon, square 1024 x 1024 PNG with real transparent alpha outside the icon.
+Primary request: Design a polished native Mac app icon for a local document format converter. A refined rounded-square blue-to-cyan gradient base, with two overlapping luminous white folded-corner document sheets and a precise pair of flowing conversion arrows as the single clear central emblem.
+Style/medium: contemporary macOS app icon, refined soft 3D relief, carefully controlled depth, crisp graphic silhouettes, restrained premium finish. It should look like a useful professional Mac utility.
+Composition/framing: one isolated icon, centered front view; rounded square fills about 88 percent of the square canvas with a small consistent transparent margin; document sheets have a few clean short embossed blue-gray lines suggesting preserved formatting; two elegant curved cyan and blue arrows connect the sheets, strongly legible at small size. All design elements fit inside the rounded square.
+Lighting/mood: soft top-left illumination, subtle inset highlight on the base, delicate contact shadows under paper, no heavy gloss or exaggerated bevels.
+Color palette: deep cobalt blue lower edge, fresh azure and teal upper area, warm-white paper; conversion arrows in cyan and cobalt.
+Materials/textures: smooth enamel-like base, matte paper with softly beveled folded corners, subtle depth, clean and immaculate.
+Text: none.
+Constraints: exactly one icon only, real transparent background outside the rounded-square icon, 1024 x 1024 square, balanced composition, excellent 32px recognizability, no external canvas or presentation surface, no surrounding scene, no words or letters, no logo or Microsoft or WPS brand references, no watermark. The conversion arrows must be recognizable as conversion, not a download symbol or an unrelated circular refresh badge.
+
+Final targeted edit prompt:
+Use case: background-extraction
+Asset type: macOS app icon, one square PNG, transparent outside its boundary.
+Primary request: Produce a final clean app-icon cutout of the supplied icon. Preserve the two documents and two conversion arrows unchanged. Replace the outer rounded-square tile perimeter with a perfectly clean simple rounded-square boundary. The gradient tile must have a clean solid edge and NO outer light or shadow. Completely erase all detached blue/cyan specks outside it.
+Composition: straight-on, centered, 1024x1024 square canvas. Tile outer bounding rectangle is from x=80 to x=944 and y=80 to y=944, with generous smooth circular corner radius. Rounded-square outer contour must be clean and simple. Outside the tile is empty fully transparent alpha. There must not be ANY blue or cyan pixels floating above, below or beside the tile. No external rim highlight, no outer halo, no outer glow, no outside contact shadow, no scattered fragments. Documents and arrows sit within the tile. Preserve their design and the blue-cyan gradient field.
+Constraints: no text, no letters, no logos, no other object, no presentation scene. Real transparent background.
+
+Selected generated master:
+Built-in ImageGen 生成；选定原图保存在 assets/AppIcon-1024.png。
+
+Export: sips resize only to 1024x1024; alpha preserved. No Python editing.

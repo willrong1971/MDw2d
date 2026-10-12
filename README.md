@@ -1,0 +1,80 @@
+# MDw2d
+
+<img src="assets/AppIcon-1024.png" alt="MDw2d 图标" width="128">
+
+MDw2d 属于 MD（“嘛的”）系列，名称取自 **wps to docx**。
+
+在 Mac 本机把 Word 无法直接打开的常见文字文档转为 DOCX 的原生应用。SwiftUI 界面支持选文件、拖入文件、批量转换、选择输出目录、显示每个文件的结果，以及用 Microsoft Word 打开结果。
+
+适用于 Apple Silicon Mac（M 系列芯片），系统要求 macOS 14 或更新版本。打包后的应用包含 Python 和 LibreOffice 转换引擎，用户不需要安装 WPS、Python 或 LibreOffice。文档的读取、转换和内容核对在本机进行。
+
+## 使用与支持范围
+
+选入或拖入文件，选择输出目录后开始转换。应用始终生成新的 `文件名（转换）.docx`，保留原件；同名结果不会被覆盖。
+
+实际内部结构决定转换方式，而不是扩展名。
+
+| 识别到的内部格式 | 处理方式 |
+| --- | --- |
+| 标准 DOCX，即使扩展名为 `.wps` 或 `.doc` | 校验内部结构后保留文件内容；一般为原字节复制，必要时修正 ZIP 内部路径 |
+| Word 97–2003 DOC，包括采用该兼容格式的 `.wps` | 转换为 DOCX，并核对正文及可解析的其他内容 |
+| RTF、ODT | 转换为 DOCX，并与转换引擎读取的基准核对 |
+| 无法识别、损坏、加密或不支持的格式 | 明确提示失败，保留原件 |
+
+转换不会改写正文。引擎输出需要经过文字、表格、图片及可核验的脚注、尾注、页眉页脚、批注和文本框检查；发现差异时停止输出。正文核对保留普通空格、不换行空格、全角空格和文字中的制表符，但会忽略部分格式控制标记、段落换行及动态页码缓存。
+
+排版尽量保持，但不保证与原软件完全一致。字体缺失、复杂表格、分栏等因素可能影响换行和分页，结果仍需用 Word 检查。内容校验通过也不代表已证明所有文档元素都完全保真。
+
+当前并非所有金山 WPS 私有格式都能转换。某些较早的 Word 格式、加密文档、宏、无法可靠核验的嵌入对象及修订记录会被拒绝。单文件目前限制为 100 MB。有效 DOCX 的原样复制与旧格式转换采用不同校验路径。
+
+## 仓库结构
+
+```text
+engine/                  Python 转换核心与非正文内容核对
+native/Sources/          SwiftUI 原生界面
+native/Info.plist        应用信息
+native/build.sh          编译和自包含应用打包
+assets/                  应用图标
+tests/                   合成测试生成、转换与审计源码
+```
+
+仓库只保存源代码、图标和说明。用户文档、转换结果、提取正文、应用包及第三方运行时均不纳入 Git。
+
+## 构建
+
+需要 Apple Silicon Mac、Xcode 命令行工具，以及可重定位的 CPython 3.12 和 Apple Silicon LibreOffice 应用目录。脚本使用系统 `rsync`、`ditto`、`codesign`、`plutil`。安装 Xcode 命令行工具后，可先检查界面编译：
+
+```sh
+bash native/build.sh --compile-only
+```
+
+构建自包含应用，并明确指定第三方运行时目录：
+
+```sh
+bash native/build.sh \
+  --destination build/package \
+  --python-home /absolute/path/to/python \
+  --libreoffice-app /absolute/path/to/LibreOffice.app
+```
+
+路径也可通过 `PYTHON_HOME`、`LIBREOFFICE_APP` 环境变量设置。在本机已有 Codex 依赖运行时的情况下，默认查找 `$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies` 下对应目录；这只是开发环境的便捷默认值，其他电脑应使用上述参数。默认从 `engine/converter.py` 复制转换核心，也支持 `--converter` 指定其他位置。
+
+默认打包最小 CPython 3.12 标准库与完整 LibreOffice 应用，并保留随附许可。`--full-python` 可复制完整 Python 运行时。图标默认读取 `assets/AppIcon.icns`，也可用 `--icon` 或 `APP_ICON` 指定。目标位置已有同名应用时拒绝覆盖。
+
+当前应用采用本地 ad-hoc 签名，尚未完成 Developer ID 签名和公证。第三方许可说明见 [THIRD-PARTY-NOTICES.md](native/THIRD-PARTY-NOTICES.md)。
+
+## 测试
+
+合成测试生成器构造中英文、空格、表格、图片、页眉页脚、脚注、批注及编号等内容，再导出多种格式。测试包含 9 个正常输入和 3 个异常输入；其中有扩展名与真实格式不一致的文件。
+
+安装测试工具依赖后运行：
+
+```sh
+python3 -m pip install -r tests/requirements.txt
+python3 tests/run_tests.py --engine /absolute/path/to/LibreOffice.app/Contents/MacOS/soffice
+```
+
+可用 `LO_ENGINE` 指定引擎，用 `--work-dir` 指定测试中间文件目录；默认输出到被 Git 忽略的 `tests/_work/`。测试会核验原件哈希、成功/失败状态、DOCX 原样复制及独立内容审计。内置转换核心仅依赖 Python 标准库，上述第三方 Python 包只用于测试生成和审计。
+
+2026 年 10 月 12 日的原型验证记录：9 个正常用例通过内容审计，3 个异常用例正确拒绝，12 个输入哈希均保持不变。该记录来自当前引擎的合成测试，不代表对所有私有 WPS 格式或复杂版式的全面支持。详细边界见 [tests/VALIDATION.md](tests/VALIDATION.md)。
+
