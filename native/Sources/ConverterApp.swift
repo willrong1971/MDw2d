@@ -38,7 +38,7 @@ enum FileStatus: String {
         case .queued: return "待转换"
         case .running: return "转换中"
         case .ok: return "已转换"
-        case .warning: return "请检查"
+        case .warning: return "已转换"
         case .error: return "转换失败"
         }
     }
@@ -284,6 +284,20 @@ final class ConverterModel: ObservableObject {
               let status = FileStatus(rawValue: rawStatus), [.ok, .warning, .error].contains(status) else { return }
         files[index].status = status
         files[index].message = json["message"] as? String ?? ""
+        if status != .error,
+           let verification = json["verification"] as? [String: Any],
+           let fonts = verification["fonts"] as? [String] {
+            let missing = fonts.filter { names in
+                !names.split(separator: ";").contains { candidate in
+                    NSFont(name: String(candidate).trimmingCharacters(in: .whitespacesAndNewlines), size: 12) != nil
+                }
+            }
+            if !missing.isEmpty {
+                files[index].status = .warning
+                let shown = missing.prefix(6).joined(separator: "、") + (missing.count > 6 ? "等 \(missing.count) 种" : "")
+                files[index].message += " 本机缺少原字体：" + shown + "；显示时可能使用替代字体。"
+            }
+        }
         if status != .error, let path = json["output"] as? String,
            FileManager.default.fileExists(atPath: path) {
             files[index].output = URL(fileURLWithPath: path)
@@ -310,7 +324,7 @@ final class ConverterModel: ObservableObject {
         let successes = files.filter { $0.status == .ok }.count
         let warnings = files.filter { $0.status == .warning }.count
         let failures = files.filter { $0.status == .error }.count
-        batchMessage = "已结束：\(successes) 个已转换，\(warnings) 个需检查，\(failures) 个失败。"
+        batchMessage = "已结束：\(successes + warnings) 个已转换，\(failures) 个失败。" + (warnings > 0 ? "转换结果请在 Word 中核对排版。" : "")
     }
 
     func showInFinder(_ url: URL) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
@@ -373,8 +387,12 @@ struct ConverterView: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 7) {
-                    Text("MDw2d").font(.largeTitle.weight(.semibold))
-                    Text("把 Word 打不开的文档转成 DOCX")
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text("MDw2d").font(.largeTitle.weight(.semibold))
+                        Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
+                            .font(.callout).foregroundStyle(.secondary)
+                    }
+                    Text("把旧 Word、WPS 等文档转成 DOCX")
                         .font(.title3).foregroundStyle(.secondary)
                 }
                 Spacer()

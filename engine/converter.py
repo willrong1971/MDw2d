@@ -81,6 +81,91 @@ class CompoundFile:
         if len(data) < length: raise ConversionError('文档内部数据不完整。')
         return data[:length]
 
+def binary_header_parts(word, table, pairpos, text):
+    """Read MS-DOC 2.3.3/2.8.22 slots, including note separators.
+
+    CPs index UTF-16 code units, not Python characters. Preserve each complete
+    story and section/type assignment; package part order has no such meaning.
+    """
+    def pair(index):
+        fc, size = struct.unpack_from('<II', word, pairpos + index * 8)
+        if size and (fc > len(table) or size > len(table) - fc):
+            raise ConversionError('旧文档页眉页脚索引越界。')
+        return table[fc:fc + size] if size else b''
+
+    raw = text.encode('utf-16le')
+    plc = pair(11)  # FibRgFcLcb97.fcPlcfHdd/lcbPlcfHdd.
+    result = {'header': [], 'footer': [], 'separators': [''] * 6,
+              'sections': [], 'even_and_odd_headers': False}
+    if not raw:
+        if plc:
+            raise ConversionError('旧文档页眉页脚长度与索引不一致。')
+        return result
+    if len(plc) < 56 or len(plc) % 4:
+        raise ConversionError('旧文档页眉页脚索引不完整。')
+    cps = struct.unpack('<%dI' % (len(plc) // 4), plc)
+    units = len(raw) // 2
+    # The last CP is undefined. The penultimate CP ends the final story;
+    # one extra final paragraph follows it and is outside all stories.
+    if (cps[0] != 0 or cps[-2] != units - 1 or
+            any(a > b for a, b in zip(cps[:-2], cps[1:-1])) or
+            any(cp >= units for cp in cps[:-1]) or
+            (len(cps) - 8) % 6 or raw[-2:] != b'\r\x00'):
+        raise ConversionError('旧文档页眉页脚索引损坏。')
+    slots = []
+    for start, end in zip(cps[:-2], cps[1:-1]):
+        story = raw[2 * start:2 * end].decode('utf-16le')
+        if story and not story.endswith('\r'):
+            raise ConversionError('旧文档页眉页脚缺少分隔段落。')
+        slots.append(story[:-1] if story else '')  # Guard paragraph only.
+    result['separators'] = slots[:6]
+
+    sed = pair(6)  # PlcfSed has one 12-byte Sed per section plus CPs.
+    count = (len(sed) - 4) // 16
+    if len(sed) < 20 or (len(sed) - 4) % 16 or count != (len(slots) - 6) // 6:
+        raise ConversionError('旧文档分节与页眉页脚索引不一致。')
+    dop = pair(31)
+    if not dop:
+        raise ConversionError('旧文档缺少页眉页脚文档设置。')
+    result['even_and_odd_headers'] = bool(dop[0] & 1)
+    for index in range(count):
+        fc_sepx = u32(sed, 4 * (count + 1) + 12 * index + 2)
+        first_page = False
+        if fc_sepx != 0xffffffff:
+            if fc_sepx + 2 > len(word):
+                raise ConversionError('旧文档分节属性越界。')
+            length = u16(word, fc_sepx)
+            props = word[fc_sepx + 2:fc_sepx + 2 + length]
+            if len(props) != length:
+                raise ConversionError('旧文档分节属性不完整。')
+            pos = 0
+            while pos < len(props):
+                if pos + 2 > len(props):
+                    raise ConversionError('旧文档分节属性损坏。')
+                sprm = u16(props, pos); pos += 2
+                if (sprm >> 10) & 7 != 4:
+                    raise ConversionError('旧文档含无法核验的分节属性。')
+                size = (1, 1, 2, 4, 2, 2, None, 3)[sprm >> 13]
+                if size is None:
+                    if pos >= len(props):
+                        raise ConversionError('旧文档分节属性长度缺失。')
+                    size = props[pos] + 1
+                if pos + size > len(props):
+                    raise ConversionError('旧文档分节属性长度无效。')
+                if sprm == 0x300a:  # sprmSFTitlePage (Bool8).
+                    if props[pos] not in (0, 1):
+                        raise ConversionError('旧文档首页页眉页脚设置无效。')
+                    first_page = bool(props[pos])
+                pos += size
+        group = slots[6 + index * 6:12 + index * 6]
+        section = {'first_page': first_page,
+                   'header': dict(zip(('even', 'default', 'first'), (group[0], group[1], group[4]))),
+                   'footer': dict(zip(('even', 'default', 'first'), (group[2], group[3], group[5])))}
+        result['sections'].append(section)
+        for kind in ('header', 'footer'):
+            result[kind].extend(section[kind].values())
+    return result
+
 def read_binary_word(data):
     cf = CompoundFile(data)
     if 'WordDocument' not in cf.entries:
@@ -131,6 +216,7 @@ def read_binary_word(data):
         units=lw[index]; chunk=encoded[pos*2:(pos+units)*2]
         if len(chunk)!=units*2: raise ConversionError('文档正文不完整。')
         stories[name]=chunk.decode('utf-16le'); pos+=units
+    stories['header_parts'] = binary_header_parts(word, table, pairpos, stories['header'])
     return stories
 
 def zip_members(data):
@@ -342,7 +428,12 @@ def convert_one(source, directory, engine, timeout=90):
                 before=(staged if kind=='odt' else convert_engine(Path(engine),staged,root/'baseline',root/'profile1','odt:writer8',timeout))
                 imported=odt_info(before)
                 target=convert_engine(Path(engine),staged,root/'converted',root/'profile2','docx:Office Open XML Text',timeout)
-                converted=target.read_bytes(); after=docx_info(converted)
+                from layout_preservation import repair_exported_layout
+                converted,layout_repairs=repair_exported_layout(target.read_bytes())
+                if layout_repairs:
+                    target.write_bytes(converted)
+                    verification['layout_repairs']=layout_repairs
+                after=docx_info(converted)
                 if imported['tables']!=after['tables'] or imported['images']!=after['images']:
                     raise ConversionError('转换前后表格或图片数量不一致，未输出可能缺失内容的文档。')
                 if imported['image_hashes']!=after['image_hashes']:

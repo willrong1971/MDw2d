@@ -27,6 +27,7 @@ def main():
     results = work / 'general-test-results.ndjson'
     report = work / 'general-test-audit.json'
 
+    subprocess.run([sys.executable, str(HERE / 'test_layout_preservation.py')], check=True)
     subprocess.run([sys.executable, str(HERE / 'build_fixtures.py'),
                     '--engine', str(engine), '--output-dir', str(fixtures)], check=True)
     subprocess.run([sys.executable, str(HERE / 'audit_roundtrips.py'),
@@ -43,6 +44,8 @@ def main():
     subprocess.run([sys.executable, str(HERE / 'audit_general_results.py'),
                     '--fixtures', str(fixtures), '--results', str(results),
                     '--report', str(report)], check=True)
+    subprocess.run([sys.executable, str(HERE / 'test_header_regressions.py'),
+                    '--engine', str(engine), '--work-dir', str(work / 'header-regressions')], check=True)
     print(f'Full audit: {report}')
 
 

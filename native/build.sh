@@ -59,9 +59,10 @@ if [[ -f "$ICON_SOURCE" ]]; then
 fi
 cp "$CONVERTER" "$APP/Contents/Resources/converter.py"
 CONVERTER_DIR="$(cd "$(dirname "$CONVERTER")" && pwd)"
-if [[ -f "$CONVERTER_DIR/content_audit.py" ]]; then
-  cp "$CONVERTER_DIR/content_audit.py" "$APP/Contents/Resources/content_audit.py"
-fi
+for HELPER in content_audit.py layout_preservation.py; do
+  [[ -f "$CONVERTER_DIR/$HELPER" ]] || { printf 'Converter helper missing: %s\n' "$HELPER" >&2; exit 1; }
+  cp "$CONVERTER_DIR/$HELPER" "$APP/Contents/Resources/$HELPER"
+done
 cp "$SCRIPT_DIR/THIRD-PARTY-NOTICES.md" "$APP/Contents/Resources/THIRD-PARTY-NOTICES.md"
 
 if [[ "$FULL_PYTHON" == 1 ]]; then
