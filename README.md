@@ -8,6 +8,12 @@ MDw2d 属于 MD（“嘛的”）系列，名称取自 **wps to docx**。
 
 适用于 Apple Silicon Mac（M 系列芯片），系统要求 macOS 14 或更新版本。打包后的应用包含 Python 和 LibreOffice 转换引擎，用户不需要安装 WPS、Python 或 LibreOffice。文档的读取、转换和内容核对在本机进行。
 
+## 下载
+
+[下载 MDw2d 0.1.3 测试版（Mac 安装包）](https://github.com/willrong1971/MDw2d/releases/download/v0.1.3/MDw2d-0.1.3.zip)。解压后打开其中的 `MDw2d.app`。
+
+[版本说明与源码包](https://github.com/willrong1971/MDw2d/releases/tag/v0.1.3)。当前应用采用本地 ad-hoc 签名，尚未完成 Apple 开发者签名和公证，其他 Mac 打开时可能出现安全提示。
+
 ## 使用与支持范围
 
 选入或拖入文件，选择输出目录后开始转换。应用始终生成新的 `文件名（转换）.docx`，保留原件；同名结果不会被覆盖。
