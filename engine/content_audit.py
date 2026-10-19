@@ -28,6 +28,11 @@ REL = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'
 SEPARATORS = ('footnote_separator', 'footnote_continuationSeparator',
               'footnote_continuationNotice', 'endnote_separator',
               'endnote_continuationSeparator', 'endnote_continuationNotice')
+# Exact encoding equivalents, shared by the body and other-story readers.
+# No ordinary hyphen, dash, whitespace or other punctuation is normalized.
+# See LibreOffice docxattributeoutput.cxx 0x1E/0x1F and OOXML run elements.
+DOC_HYPHENS = {'\x1e': '\u2011', '\x1f': '\u00ad'}
+WORD_HYPHENS = {'noBreakHyphen': '\u2011', 'softHyphen': '\u00ad'}
 
 
 def _normalized(text):
@@ -53,7 +58,9 @@ def _binary_visible(text):
         elif fields and not fields[-1]['result']:
             fields[-1]['code'] += char
         elif not any(not f['result'] or f['dynamic'] for f in fields):
-            output.append(char)
+            # DOC encodes actual nonbreaking/optional hyphens as 0x1E/0x1F.
+            # Preserve their semantics when comparing against OOXML/ODF.
+            output.append(DOC_HYPHENS.get(char, char))
     if fields:
         raise ValueError('旧文档非正文域未闭合，无法可靠核验。')
     return _normalized(''.join(output))
@@ -116,6 +123,10 @@ def _word_visible(node, skip_textboxes=False):
         if el.tag == W + 'tab':
             if not any(not f['result'] or f['dynamic'] for f in fields):
                 out.append('\t')
+            return
+        if el.tag in (W + 'noBreakHyphen', W + 'softHyphen'):
+            if not any(not f['result'] or f['dynamic'] for f in fields):
+                out.append(WORD_HYPHENS[el.tag[len(W):]])
             return
         for child in _logical_children(el):
             visit(child)

@@ -44,6 +44,8 @@ def main():
     subprocess.run([sys.executable, str(HERE / 'audit_general_results.py'),
                     '--fixtures', str(fixtures), '--results', str(results),
                     '--report', str(report)], check=True)
+    subprocess.run([sys.executable, str(HERE / 'test_body_regressions.py'),
+                    '--engine', str(engine), '--work-dir', str(work / 'body-regressions')], check=True)
     subprocess.run([sys.executable, str(HERE / 'test_header_regressions.py'),
                     '--engine', str(engine), '--work-dir', str(work / 'header-regressions')], check=True)
     print(f'Full audit: {report}')

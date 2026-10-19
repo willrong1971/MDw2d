@@ -14,6 +14,7 @@ DR = '{urn:oasis:names:tc:opendocument:xmlns:drawing:1.0}'
 MAX_SIZE = 100 * 1024 * 1024
 MAX_UNPACKED = 256 * 1024 * 1024
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from content_audit import DOC_HYPHENS, WORD_HYPHENS
 
 class ConversionError(Exception): pass
 
@@ -268,6 +269,10 @@ def docx_info(data):
                 if el.tag in (wp+'t',wp+'delText'): result.append(el.text or '')
                 elif el.tag==wp+'tab': result.append('\t')
                 elif el.tag==wp+'br': result.append('\n')
+                # These empty run elements carry actual characters. Keep
+                # nonbreaking/optional hyphens distinct from ordinary '-'.
+                elif el.tag==wp+'noBreakHyphen': result.append(WORD_HYPHENS['noBreakHyphen'])
+                elif el.tag==wp+'softHyphen': result.append(WORD_HYPHENS['softHyphen'])
                 else:
                     for child in el: walk(child)
             walk(node)
@@ -317,7 +322,10 @@ def visible_binary(text):
         if ch=='\x15' and stack: stack.pop(); continue
         if stack and not stack[-1]['result']: stack[-1]['code']+=ch; continue
         if any(s['dynamic'] for s in stack): continue
-        if ch not in '\r\n\x07\x01\x02\x05\x08\x0b\x0c\x0e': out.append(ch)
+        if ch not in '\r\n\x07\x01\x02\x05\x08\x0b\x0c\x0e':
+            # DOC's 0x1E/0x1F encode the same characters that DOCX stores
+            # as noBreakHyphen/softHyphen elements (or Unicode text).
+            out.append(DOC_HYPHENS.get(ch, ch))
     return ''.join(out)
 
 def visible_xml(text): return text.replace('\r','').replace('\n','')
