@@ -27,6 +27,7 @@ def main():
     results = work / 'general-test-results.ndjson'
     report = work / 'general-test-audit.json'
 
+    subprocess.run([sys.executable, str(HERE / 'test_batch_inputs.py')], check=True)
     subprocess.run([sys.executable, str(HERE / 'test_layout_preservation.py')], check=True)
     subprocess.run([sys.executable, str(HERE / 'build_fixtures.py'),
                     '--engine', str(engine), '--output-dir', str(fixtures)], check=True)

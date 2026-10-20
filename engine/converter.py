@@ -477,14 +477,61 @@ def convert_one(source, directory, engine, timeout=90):
         result['message']=str(e) if isinstance(e,ConversionError) else '文件无法可靠读取，已保留原件；'+str(e)
     return result
 
-def main():
+def parse_batch_args(argv=None):
     p=argparse.ArgumentParser(description='本地转换文字文档为 DOCX，始终保留原件。')
-    p.add_argument('--engine',required=True); p.add_argument('--output-dir',required=True)
-    p.add_argument('--timeout',type=int,default=90); p.add_argument('inputs',nargs='+')
-    args=p.parse_args(); failed=False
+    p.add_argument('--engine',required=True,help='应用内转换引擎的路径')
+    output=p.add_mutually_exclusive_group(required=True)
+    output.add_argument('--output-dir',help='将所有转换结果保存到指定文件夹')
+    output.add_argument('--beside-input',action='store_true',help='将每个转换结果保存到各自原件所在文件夹')
+    p.add_argument('--timeout',type=int,default=90,help='每次引擎转换的超时秒数，默认 90')
+    p.add_argument('--input-list-file',metavar='JSON',help='UTF-8 JSON 路径字符串数组；相对路径按当前工作目录解析，不能与 inputs 同用')
+    p.add_argument('inputs',nargs='*',help='待转换文件路径；不能与 --input-list-file 同用')
+    args=p.parse_args(argv)
+    if args.input_list_file is not None:
+        if args.inputs:
+            p.error('--input-list-file 不能与直接传入的文件路径同时使用。')
+        try:
+            inputs=json.loads(Path(args.input_list_file).expanduser().read_text(encoding='utf-8'))
+        except (OSError,UnicodeError,ValueError,RecursionError) as e:
+            reason=('清单不是有效的 UTF-8 JSON。' if isinstance(e,(UnicodeError,ValueError,RecursionError))
+                    else '无法读取输入清单。')
+            p.error(reason)
+    else:
+        inputs=args.inputs
+    if not isinstance(inputs,list) or not inputs:
+        p.error('输入清单必须是非空 JSON 数组，或至少直接传入一个文件路径。')
+    # Validate the entire list before emitting start events or writing output.
+    # A manifest keeps even thousands of long paths outside the argv size limit.
+    for index,source in enumerate(inputs,1):
+        if not isinstance(source,str) or not source.strip():
+            p.error(f'第 {index} 个输入必须是非空的文件路径字符串。')
+        if '\0' in source or any(0xd800<=ord(ch)<=0xdfff for ch in source):
+            p.error(f'第 {index} 个输入路径含不受支持的字符（NUL 或无效 Unicode）。')
+    args.inputs=inputs
+    return args
+
+def main(argv=None):
+    args=parse_batch_args(argv); failed=False
     for source in args.inputs:
-        print(json.dumps({'event':'start','input':str(Path(source).expanduser().resolve())},ensure_ascii=False),flush=True)
-        result=convert_one(source,args.output_dir,args.engine,args.timeout)
+        try:
+            resolved=Path(source).expanduser().resolve()
+        except (OSError,RuntimeError,ValueError) as e:
+            # Bad filesystem entries must not prevent later documents running.
+            resolved=Path(os.path.abspath(source))
+            result={'input':str(resolved),'status':'error','output':None,
+                    'message':'输入路径无法读取，已保留原件；'+str(e),'verification':{}}
+        else:
+            result=None
+        print(json.dumps({'event':'start','input':str(resolved)},ensure_ascii=False),flush=True)
+        if result is None:
+            directory=resolved.parent if args.beside_input else args.output_dir
+            try:
+                result=convert_one(source,directory,args.engine,args.timeout)
+            except Exception as e:
+                # convert_one also resolves the output location before its
+                # content checks; a bad path must remain a per-file failure.
+                result={'input':str(resolved),'status':'error','output':None,
+                        'message':'文件无法可靠读取，已保留原件；'+str(e),'verification':{}}
         print(json.dumps(result,ensure_ascii=False),flush=True); failed |= result['status']=='error'
     return 1 if failed else 0
 

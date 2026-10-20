@@ -36,7 +36,7 @@ mkdir -p "$SCRIPT_DIR/build"
 SWIFT_BINARY="$SCRIPT_DIR/build/MDw2d"
 xcrun swiftc -O -parse-as-library -swift-version 5 -target arm64-apple-macos14.0 \
   -framework AppKit -framework SwiftUI -framework UniformTypeIdentifiers \
-  -o "$SWIFT_BINARY" "$SCRIPT_DIR/Sources/ConverterApp.swift"
+  -o "$SWIFT_BINARY" "$SCRIPT_DIR"/Sources/*.swift
 if [[ "$COMPILE_ONLY" == 1 ]]; then
   printf 'Compiled: %s\n' "$SWIFT_BINARY"
   exit 0
